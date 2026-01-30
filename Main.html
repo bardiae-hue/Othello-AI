@@ -2,34 +2,98 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pro Othello AI</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; background: #2c3e50; color: white; }
-        #game-container { position: relative; margin-top: 20px; }
-        #board { display: grid; grid-template-columns: repeat(8, 50px); grid-template-rows: repeat(8, 50px); background: #27ae60; border: 5px solid #145a32; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .cell { width: 50px; height: 50px; border: 1px solid rgba(0,0,0,0.2); display: flex; justify-content: center; align-items: center; cursor: pointer; }
-        .cell:hover { background: #2ecc71; }
-        .piece { width: 40px; height: 40px; border-radius: 50%; transition: transform 0.4s, background 0.4s; }
-        .black { background: #000; box-shadow: 2px 2px 5px rgba(0,0,0,0.5); }
-        .white { background: #fff; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); }
-        .status { margin: 20px; font-size: 1.5rem; font-weight: bold; }
-        .controls { margin-bottom: 10px; }
-        button { padding: 10px 20px; cursor: pointer; background: #e67e22; border: none; color: white; border-radius: 5px; font-weight: bold; }
+        :root {
+            --bg-color: #0d1117;
+            --board-color: #238636;
+            --cell-border: rgba(0, 0, 0, 0.3);
+            --accent: #58a6ff;
+        }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+            background: var(--bg-color); color: white; margin: 0; padding: 20px;
+        }
+        .status-container { display: flex; gap: 40px; margin: 20px 0; }
+        .status-item { text-align: center; }
+        .label { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
+        .value { font-size: 1.5rem; font-weight: bold; }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, min(10vw, 60px));
+            grid-template-rows: repeat(8, min(10vw, 60px));
+            background: var(--board-color);
+            border: 8px solid #161b22;
+            border-radius: 8px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        .cell {
+            position: relative;
+            border: 1px solid var(--cell-border);
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .cell:hover { background: #2ea043; }
+
+        /* Valid move hint */
+        .cell.hint::after {
+            content: ''; width: 12px; height: 12px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+        }
+
+        .piece {
+            width: 80%; height: 80%; border-radius: 50%;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+        .black {
+            background: #121212;
+            box-shadow: inset -2px -2px 6px rgba(255,255,255,0.1), 3px 3px 10px rgba(0,0,0,0.6);
+        }
+        .white {
+            background: #ffffff;
+            box-shadow: inset -2px -2px 6px rgba(0,0,0,0.2), 3px 3px 10px rgba(0,0,0,0.4);
+            transform: rotateY(180deg);
+        }
+
+        button {
+            margin-top: 30px; padding: 12px 30px; cursor: pointer;
+            background: transparent; border: 1px solid var(--accent);
+            color: var(--accent); border-radius: 6px; font-weight: bold;
+            transition: all 0.2s;
+        }
+        button:hover { background: var(--accent); color: #0d1117; }
     </style>
 </head>
 <body>
 
-    <div class="status" id="status">Your Turn (Black)</div>
-    <div id="game-container">
-        <div id="board"></div>
+    <div class="status-item" style="margin-bottom: 10px;">
+        <div class="value" id="status">Your Turn</div>
     </div>
-    <div class="status" id="score">Black: 2 | White: 2</div>
-    <button onclick="resetGame()">Reset Game</button>
+
+    <div id="board"></div>
+
+    <div class="status-container">
+        <div class="status-item">
+            <div class="label">Black</div>
+            <div class="value" id="score-black">2</div>
+        </div>
+        <div class="status-item">
+            <div class="label">White (AI)</div>
+            <div class="value" id="score-white">2</div>
+        </div>
+    </div>
+
+    <button onclick="resetGame()">Reset Match</button>
 
     <script>
         const BOARD_SIZE = 8;
-        const BLACK = 1; // Human
-        const WHITE = 2; // AI
+        const BLACK = 1;
+        const WHITE = 2;
         const EMPTY = 0;
 
         let board = [];
@@ -57,11 +121,17 @@
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
             let bCount = 0, wCount = 0;
+            const validMoves = getValidMoves(board, currentPlayer);
 
             for (let r = 0; r < BOARD_SIZE; r++) {
                 for (let c = 0; c < BOARD_SIZE; c++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
+
+                    if (currentPlayer === BLACK && validMoves.some(m => m.r === r && m.c === c)) {
+                        cell.classList.add('hint');
+                    }
+
                     cell.onclick = () => handleMove(r, c);
 
                     if (board[r][c] !== EMPTY) {
@@ -73,7 +143,8 @@
                     boardEl.appendChild(cell);
                 }
             }
-            document.getElementById('score').innerText = `Black: ${bCount} | White: ${wCount}`;
+            document.getElementById('score-black').innerText = bCount;
+            document.getElementById('score-white').innerText = wCount;
         }
 
         function getValidMoves(tempBoard, player) {
@@ -112,10 +183,22 @@
             if (flips.length === 0) return;
 
             applyMove(board, r, c, BLACK, flips);
+            render();
+
             currentPlayer = WHITE;
             document.getElementById('status').innerText = "AI is thinking...";
-            render();
-            setTimeout(aiMove, 600);
+
+            setTimeout(() => {
+                const whiteMoves = getValidMoves(board, WHITE);
+                if (whiteMoves.length > 0) {
+                    aiMove();
+                } else {
+                    currentPlayer = BLACK;
+                    document.getElementById('status').innerText = "AI Passed (No Moves)";
+                    render();
+                }
+                checkGameOver();
+            }, 800);
         }
 
         function applyMove(targetBoard, r, c, player, flips) {
@@ -123,43 +206,81 @@
             flips.forEach(([fr, fc]) => targetBoard[fr][fc] = player);
         }
 
-        // AI Component: Minimax with simple heuristic
+        function evaluateBoard(tempBoard) {
+            let score = 0;
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (tempBoard[r][c] === WHITE) score += WEIGHTS[r][c];
+                    else if (tempBoard[r][c] === BLACK) score -= WEIGHTS[r][c];
+                }
+            }
+            return score;
+        }
+
+        function minimax(tempBoard, depth, isMaximizing) {
+            if (depth === 0) return evaluateBoard(tempBoard);
+
+            const moves = getValidMoves(tempBoard, isMaximizing ? WHITE : BLACK);
+            if (moves.length === 0) return evaluateBoard(tempBoard);
+
+            if (isMaximizing) {
+                let best = -Infinity;
+                moves.forEach(m => {
+                    let newBoard = tempBoard.map(row => [...row]);
+                    applyMove(newBoard, m.r, m.c, WHITE, isValidMove(newBoard, m.r, m.c, WHITE));
+                    best = Math.max(best, minimax(newBoard, depth - 1, false));
+                });
+                return best;
+            } else {
+                let best = Infinity;
+                moves.forEach(m => {
+                    let newBoard = tempBoard.map(row => [...row]);
+                    applyMove(newBoard, m.r, m.c, BLACK, isValidMove(newBoard, m.r, m.c, BLACK));
+                    best = Math.min(best, minimax(newBoard, depth - 1, true));
+                });
+                return best;
+            }
+        }
+
         function aiMove() {
             const moves = getValidMoves(board, WHITE);
-            if (moves.length > 0) {
-                let bestScore = -Infinity;
-                let bestMove = moves[0];
+            let bestMove = moves[0];
+            let bestVal = -Infinity;
 
-                moves.forEach(move => {
-                    let score = WEIGHTS[move.r][move.c];
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestMove = move;
-                    }
-                });
+            moves.forEach(m => {
+                let newBoard = board.map(row => [...row]);
+                applyMove(newBoard, m.r, m.c, WHITE, isValidMove(newBoard, m.r, m.c, WHITE));
+                let moveVal = minimax(newBoard, 3, false); // Look 3 moves ahead
+                if (moveVal > bestVal) {
+                    bestVal = moveVal;
+                    bestMove = m;
+                }
+            });
 
-                const flips = isValidMove(board, bestMove.r, bestMove.c, WHITE);
-                applyMove(board, bestMove.r, bestMove.c, WHITE, flips);
-            }
+            const flips = isValidMove(board, bestMove.r, bestMove.c, WHITE);
+            applyMove(board, bestMove.r, bestMove.c, WHITE, flips);
 
             currentPlayer = BLACK;
-            document.getElementById('status').innerText = "Your Turn (Black)";
+            document.getElementById('status').innerText = "Your Turn";
             render();
-            checkGameOver();
+
+            if (getValidMoves(board, BLACK).length === 0) {
+                document.getElementById('status').innerText = "You Pass (No Moves)";
+                setTimeout(aiMove, 1000);
+            }
         }
 
         function checkGameOver() {
-            const blackMoves = getValidMoves(board, BLACK);
-            const whiteMoves = getValidMoves(board, WHITE);
-            if (blackMoves.length === 0 && whiteMoves.length === 0) {
-                document.getElementById('status').innerText = "Game Over!";
-                alert("Game Over! Check the final score.");
+            if (getValidMoves(board, BLACK).length === 0 && getValidMoves(board, WHITE).length === 0) {
+                const b = board.flat().filter(x => x === BLACK).length;
+                const w = board.flat().filter(x => x === WHITE).length;
+                document.getElementById('status').innerText = b > w ? "You Win!" : "AI Wins!";
             }
         }
 
         function resetGame() {
             currentPlayer = BLACK;
-            document.getElementById('status').innerText = "Your Turn (Black)";
+            document.getElementById('status').innerText = "Your Turn";
             initBoard();
         }
 
