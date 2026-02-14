@@ -10,7 +10,7 @@
             --board-color: #238636;
             --cell-border: rgba(0, 0, 0, 0.3);
             --accent: #58a6ff;
-            --win-color: #238636;
+            --win-color: #2ea043;
             --loss-color: #da3633;
         }
         body {
@@ -23,7 +23,7 @@
         /* Result Overlay */
         #overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(13, 17, 23, 0.85);
+            background: rgba(13, 17, 23, 0.9);
             backdrop-filter: blur(10px);
             display: none; flex-direction: column; justify-content: center;
             align-items: center; z-index: 100;
@@ -31,8 +31,9 @@
         }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        #result-text { font-size: 3rem; font-weight: 800; margin-bottom: 10px; text-align: center; }
-        #result-emoji { font-size: 5rem; margin-bottom: 20px; }
+        #result-text { font-size: 3.5rem; font-weight: 800; margin: 0; text-align: center; }
+        #result-subtext { font-size: 1.5rem; color: #8b949e; margin-bottom: 30px; }
+        #result-emoji { font-size: 5rem; margin-bottom: 10px; }
 
         .controls {
             background: #161b22; padding: 15px 25px; border-radius: 12px;
@@ -50,6 +51,27 @@
             transition: transform 0.3s ease;
         }
 
+        /* Interactive Cell Effects */
+        .cell {
+            position: relative; border: 1px solid var(--cell-border);
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: all 0.2s ease;
+        }
+
+        /* Interactive Cursor Highlight */
+        .cell:hover {
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 0 15px rgba(255, 255, 255, 0.1);
+        }
+
+        /* Valid Move Hint */
+        .cell.hint::after {
+            content: ''; width: 12px; height: 12px;
+            background: rgba(255, 255, 255, 0.3); border-radius: 50%;
+            transition: transform 0.2s;
+        }
+        .cell.hint:hover::after { transform: scale(1.5); background: white; }
+
         /* Animations */
         .shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
         @keyframes shake {
@@ -65,19 +87,9 @@
             60% {transform: translateY(-10px);}
         }
 
-        .cell {
-            position: relative; border: 1px solid var(--cell-border);
-            display: flex; justify-content: center; align-items: center;
-            cursor: pointer; transition: background 0.2s;
-        }
-        .cell.hint::after {
-            content: ''; width: 12px; height: 12px;
-            background: rgba(255, 255, 255, 0.2); border-radius: 50%;
-        }
-
         .piece {
             width: 85%; height: 85%; border-radius: 50%;
-            transition: transform 0.4s ease-out;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .black { background: #121212; box-shadow: inset -2px -2px 6px rgba(255,255,255,0.1), 3px 3px 10px rgba(0,0,0,0.6); }
         .white { background: #ffffff; box-shadow: inset -2px -2px 6px rgba(0,0,0,0.2), 3px 3px 10px rgba(0,0,0,0.4); }
@@ -98,6 +110,7 @@
     <div id="overlay">
         <div id="result-emoji">🏆</div>
         <div id="result-text">YOU WIN!</div>
+        <div id="result-subtext">By 12 points</div>
         <button class="btn-overlay" onclick="resetGame()">Play Again</button>
     </div>
 
@@ -115,7 +128,7 @@
 
     <div class="status-container">
         <div class="status-item">
-            <div class="label">Black</div>
+            <div class="label">Black (You)</div>
             <div class="value" id="score-black">2</div>
         </div>
         <div class="status-item">
@@ -172,9 +185,11 @@
                 for (let c = 0; c < BOARD_SIZE; c++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
+
                     if (currentPlayer === BLACK && validMoves.some(m => m.r === r && m.c === c)) {
                         cell.classList.add('hint');
                     }
+
                     cell.onclick = () => handleMove(r, c);
 
                     if (board[r][c] !== EMPTY) {
@@ -236,7 +251,7 @@
             if (!gameStarted) {
                 gameStarted = true;
                 document.getElementById('difficulty').disabled = true;
-                document.getElementById('lock-msg').innerText = "LOCKED FOR CURRENT MATCH";
+                document.getElementById('lock-msg').innerText = "DIFFICULTY LOCKED";
             }
 
             board = applyMove(board, r, c, BLACK, flips);
@@ -245,7 +260,7 @@
             checkGameOver();
 
             if (currentPlayer === WHITE) {
-                document.getElementById('status').innerText = "AI is thinking...";
+                document.getElementById('status').innerText = "AI is calculating...";
                 setTimeout(aiTurn, 600);
             }
         }
@@ -354,23 +369,28 @@
         function showEndScreen(b, w) {
             const overlay = document.getElementById('overlay');
             const resText = document.getElementById('result-text');
+            const resSub = document.getElementById('result-subtext');
             const resEmoji = document.getElementById('result-emoji');
             const boardEl = document.getElementById('board');
+            const diff = Math.abs(b - w);
 
             overlay.style.display = 'flex';
 
             if (b > w) {
                 resText.innerText = "YOU WIN!";
+                resSub.innerText = `Dominated by ${diff} points`;
                 resText.style.color = "var(--accent)";
                 resEmoji.innerText = "🏆";
                 boardEl.classList.add('bounce');
             } else if (w > b) {
                 resText.innerText = "AI WINS";
+                resSub.innerText = `Defeated by ${diff} points`;
                 resText.style.color = "#da3633";
                 resEmoji.innerText = "💀";
                 boardEl.classList.add('shake');
             } else {
-                resText.innerText = "DRAW";
+                resText.innerText = "IT'S A DRAW";
+                resSub.innerText = "Equal mastery on both sides";
                 resText.style.color = "white";
                 resEmoji.innerText = "🤝";
             }
@@ -380,7 +400,7 @@
             currentPlayer = BLACK;
             gameStarted = false;
             document.getElementById('overlay').style.display = 'none';
-            document.getElementById('board').className = ''; // Remove animations
+            document.getElementById('board').className = '';
             document.getElementById('difficulty').disabled = false;
             document.getElementById('lock-msg').innerText = "";
             document.getElementById('status').innerText = "Your Turn";
