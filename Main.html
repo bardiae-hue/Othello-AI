@@ -3,73 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bardia's AI Othello Game</title>
+    <title>Bardia's Pro AI Othello</title>
     <style>
         :root {
             --bg-color: #0d1117;
             --board-color: #238636;
             --cell-border: rgba(0, 0, 0, 0.3);
             --accent: #58a6ff;
+            --win-color: #238636;
+            --loss-color: #da3633;
         }
         body {
             font-family: 'Inter', system-ui, sans-serif;
             display: flex; flex-direction: column; align-items: center;
             background: var(--bg-color); color: white; margin: 0; padding: 20px;
+            overflow-x: hidden;
         }
-        .status-container { display: flex; gap: 40px; margin: 20px 0; }
-        .status-item { text-align: center; }
-        .label { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
-        .value { font-size: 1.5rem; font-weight: bold; }
+
+        /* Result Overlay */
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(13, 17, 23, 0.85);
+            backdrop-filter: blur(10px);
+            display: none; flex-direction: column; justify-content: center;
+            align-items: center; z-index: 100;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        #result-text { font-size: 3rem; font-weight: 800; margin-bottom: 10px; text-align: center; }
+        #result-emoji { font-size: 5rem; margin-bottom: 20px; }
+
+        .controls {
+            background: #161b22; padding: 15px 25px; border-radius: 12px;
+            margin-bottom: 20px; display: flex; flex-direction: column;
+            align-items: center; gap: 10px; border: 1px solid #30363d;
+        }
 
         #board {
             display: grid;
             grid-template-columns: repeat(8, min(10vw, 60px));
             grid-template-rows: repeat(8, min(10vw, 60px));
             background: var(--board-color);
-            border: 8px solid #161b22;
-            border-radius: 8px;
+            border: 8px solid #161b22; border-radius: 8px;
             box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            transition: transform 0.3s ease;
         }
+
+        /* Animations */
+        .shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .bounce { animation: bounce 0.6s ease; }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+            40% {transform: translateY(-20px);}
+            60% {transform: translateY(-10px);}
+        }
+
         .cell {
-            position: relative;
-            border: 1px solid var(--cell-border);
+            position: relative; border: 1px solid var(--cell-border);
             display: flex; justify-content: center; align-items: center;
             cursor: pointer; transition: background 0.2s;
         }
-        .cell:hover { background: #2ea043; }
-
-        /* Valid move hint */
         .cell.hint::after {
             content: ''; width: 12px; height: 12px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2); border-radius: 50%;
         }
 
         .piece {
-            width: 80%; height: 80%; border-radius: 50%;
-            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            transform-style: preserve-3d;
+            width: 85%; height: 85%; border-radius: 50%;
+            transition: transform 0.4s ease-out;
         }
-        .black {
-            background: #121212;
-            box-shadow: inset -2px -2px 6px rgba(255,255,255,0.1), 3px 3px 10px rgba(0,0,0,0.6);
-        }
-        .white {
-            background: #ffffff;
-            box-shadow: inset -2px -2px 6px rgba(0,0,0,0.2), 3px 3px 10px rgba(0,0,0,0.4);
-            transform: rotateY(180deg);
-        }
+        .black { background: #121212; box-shadow: inset -2px -2px 6px rgba(255,255,255,0.1), 3px 3px 10px rgba(0,0,0,0.6); }
+        .white { background: #ffffff; box-shadow: inset -2px -2px 6px rgba(0,0,0,0.2), 3px 3px 10px rgba(0,0,0,0.4); }
 
+        input[type=range] { width: 200px; cursor: pointer; }
         button {
-            margin-top: 30px; padding: 12px 30px; cursor: pointer;
+            margin-top: 20px; padding: 12px 30px; cursor: pointer;
             background: transparent; border: 1px solid var(--accent);
             color: var(--accent); border-radius: 6px; font-weight: bold;
             transition: all 0.2s;
         }
         button:hover { background: var(--accent); color: #0d1117; }
+        .btn-overlay { border-color: white; color: white; margin-top: 0; }
     </style>
 </head>
 <body>
+
+    <div id="overlay">
+        <div id="result-emoji">🏆</div>
+        <div id="result-text">YOU WIN!</div>
+        <button class="btn-overlay" onclick="resetGame()">Play Again</button>
+    </div>
+
+    <div class="controls">
+        <div class="label">Difficulty: <span id="diff-label">Advanced</span></div>
+        <input type="range" id="difficulty" min="1" max="6" value="4" oninput="updateDifficulty()">
+        <div id="lock-msg" style="font-size: 0.7rem; color: #f85149; height: 10px;"></div>
+    </div>
 
     <div class="status-item" style="margin-bottom: 10px;">
         <div class="value" id="status">Your Turn</div>
@@ -98,6 +134,8 @@
 
         let board = [];
         let currentPlayer = BLACK;
+        let aiDepth = 4;
+        let gameStarted = false;
 
         const WEIGHTS = [
             [100, -20, 10,  5,  5, 10, -20, 100],
@@ -109,6 +147,13 @@
             [-20, -50, -2, -2, -2, -2, -50, -20],
             [100, -20, 10,  5,  5, 10, -20, 100]
         ];
+
+        function updateDifficulty() {
+            if (gameStarted) return;
+            aiDepth = parseInt(document.getElementById('difficulty').value);
+            const labels = ["Novice", "Easy", "Normal", "Advanced", "Expert", "Grandmaster"];
+            document.getElementById('diff-label').innerText = labels[aiDepth - 1];
+        }
 
         function initBoard() {
             board = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(EMPTY));
@@ -127,11 +172,9 @@
                 for (let c = 0; c < BOARD_SIZE; c++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
-
                     if (currentPlayer === BLACK && validMoves.some(m => m.r === r && m.c === c)) {
                         cell.classList.add('hint');
                     }
-
                     cell.onclick = () => handleMove(r, c);
 
                     if (board[r][c] !== EMPTY) {
@@ -147,18 +190,19 @@
             document.getElementById('score-white').innerText = wCount;
         }
 
-        function getValidMoves(tempBoard, player) {
+        function getValidMoves(targetBoard, player) {
             let moves = [];
             for (let r = 0; r < BOARD_SIZE; r++) {
                 for (let c = 0; c < BOARD_SIZE; c++) {
-                    if (isValidMove(tempBoard, r, c, player).length > 0) moves.push({r, c});
+                    const flips = getFlips(targetBoard, r, c, player);
+                    if (flips.length > 0) moves.push({r, c, flips});
                 }
             }
             return moves;
         }
 
-        function isValidMove(tempBoard, r, c, player) {
-            if (tempBoard[r][c] !== EMPTY) return [];
+        function getFlips(targetBoard, r, c, player) {
+            if (targetBoard[r][c] !== EMPTY) return [];
             const opponent = player === BLACK ? WHITE : BLACK;
             const directions = [[-1,-1], [-1,0], [-1,1], [0,-1], [0,1], [1,-1], [1,0], [1,1]];
             let totalFlips = [];
@@ -166,44 +210,123 @@
             for (let [dr, dc] of directions) {
                 let currR = r + dr, currC = c + dc;
                 let potentialFlips = [];
-                while (currR >= 0 && currR < 8 && currC >= 0 && currC < 8 && tempBoard[currR][currC] === opponent) {
+                while (currR >= 0 && currR < 8 && currC >= 0 && currC < 8 && targetBoard[currR][currC] === opponent) {
                     potentialFlips.push([currR, currC]);
                     currR += dr; currC += dc;
                 }
-                if (currR >= 0 && currR < 8 && currC >= 0 && currC < 8 && tempBoard[currR][currC] === player) {
+                if (currR >= 0 && currR < 8 && currC >= 0 && currC < 8 && targetBoard[currR][currC] === player) {
                     totalFlips = totalFlips.concat(potentialFlips);
                 }
             }
             return totalFlips;
         }
 
-        function handleMove(r, c) {
-            if (currentPlayer !== BLACK) return;
-            const flips = isValidMove(board, r, c, BLACK);
-            if (flips.length === 0) return;
-
-            applyMove(board, r, c, BLACK, flips);
-            render();
-
-            currentPlayer = WHITE;
-            document.getElementById('status').innerText = "AI is thinking...";
-
-            setTimeout(() => {
-                const whiteMoves = getValidMoves(board, WHITE);
-                if (whiteMoves.length > 0) {
-                    aiMove();
-                } else {
-                    currentPlayer = BLACK;
-                    document.getElementById('status').innerText = "AI Passed (No Moves)";
-                    render();
-                }
-                checkGameOver();
-            }, 800);
+        function applyMove(targetBoard, r, c, player, flips) {
+            const nextBoard = targetBoard.map(row => [...row]);
+            nextBoard[r][c] = player;
+            flips.forEach(([fr, fc]) => nextBoard[fr][fc] = player);
+            return nextBoard;
         }
 
-        function applyMove(targetBoard, r, c, player, flips) {
-            targetBoard[r][c] = player;
-            flips.forEach(([fr, fc]) => targetBoard[fr][fc] = player);
+        function handleMove(r, c) {
+            if (currentPlayer !== BLACK) return;
+            const flips = getFlips(board, r, c, BLACK);
+            if (flips.length === 0) return;
+
+            if (!gameStarted) {
+                gameStarted = true;
+                document.getElementById('difficulty').disabled = true;
+                document.getElementById('lock-msg').innerText = "LOCKED FOR CURRENT MATCH";
+            }
+
+            board = applyMove(board, r, c, BLACK, flips);
+            currentPlayer = WHITE;
+            render();
+            checkGameOver();
+
+            if (currentPlayer === WHITE) {
+                document.getElementById('status').innerText = "AI is thinking...";
+                setTimeout(aiTurn, 600);
+            }
+        }
+
+        function aiTurn() {
+            const moves = getValidMoves(board, WHITE);
+            if (moves.length === 0) {
+                currentPlayer = BLACK;
+                document.getElementById('status').innerText = "AI Passed (No Moves)";
+                if (getValidMoves(board, BLACK).length === 0) checkGameOver();
+                else render();
+                return;
+            }
+
+            const bestMove = getBestMove(board, aiDepth);
+            board = applyMove(board, bestMove.r, bestMove.c, WHITE, bestMove.flips);
+            currentPlayer = BLACK;
+            document.getElementById('status').innerText = "Your Turn";
+
+            render();
+            checkGameOver();
+
+            if (getValidMoves(board, BLACK).length === 0) {
+                const wMoves = getValidMoves(board, WHITE);
+                if (wMoves.length > 0) {
+                    document.getElementById('status').innerText = "You Pass!";
+                    setTimeout(aiTurn, 1000);
+                } else {
+                    checkGameOver();
+                }
+            }
+        }
+
+        function minimax(tempBoard, depth, alpha, beta, isMaximizing) {
+            if (depth === 0) return evaluateBoard(tempBoard);
+            const moves = getValidMoves(tempBoard, isMaximizing ? WHITE : BLACK);
+
+            if (moves.length === 0) {
+                if (getValidMoves(tempBoard, isMaximizing ? BLACK : WHITE).length === 0) {
+                    return evaluateBoard(tempBoard) * 100;
+                }
+                return minimax(tempBoard, depth - 1, alpha, beta, !isMaximizing);
+            }
+
+            if (isMaximizing) {
+                let maxEval = -Infinity;
+                for (const m of moves) {
+                    const nextBoard = applyMove(tempBoard, m.r, m.c, WHITE, m.flips);
+                    const eval = minimax(nextBoard, depth - 1, alpha, beta, false);
+                    maxEval = Math.max(maxEval, eval);
+                    alpha = Math.max(alpha, eval);
+                    if (beta <= alpha) break;
+                }
+                return maxEval;
+            } else {
+                let minEval = Infinity;
+                for (const m of moves) {
+                    const nextBoard = applyMove(tempBoard, m.r, m.c, BLACK, m.flips);
+                    const eval = minimax(nextBoard, depth - 1, alpha, beta, true);
+                    minEval = Math.min(minEval, eval);
+                    beta = Math.min(beta, eval);
+                    if (beta <= alpha) break;
+                }
+                return minEval;
+            }
+        }
+
+        function getBestMove(currentBoard, depth) {
+            const moves = getValidMoves(currentBoard, WHITE);
+            let bestVal = -Infinity;
+            let bestMove = moves[0];
+
+            for (const m of moves) {
+                const nextBoard = applyMove(currentBoard, m.r, m.c, WHITE, m.flips);
+                const moveVal = minimax(nextBoard, depth, -Infinity, Infinity, false);
+                if (moveVal > bestVal) {
+                    bestVal = moveVal;
+                    bestMove = m;
+                }
+            }
+            return bestMove;
         }
 
         function evaluateBoard(tempBoard) {
@@ -217,73 +340,54 @@
             return score;
         }
 
-        function minimax(tempBoard, depth, isMaximizing) {
-            if (depth === 0) return evaluateBoard(tempBoard);
-
-            const moves = getValidMoves(tempBoard, isMaximizing ? WHITE : BLACK);
-            if (moves.length === 0) return evaluateBoard(tempBoard);
-
-            if (isMaximizing) {
-                let best = -Infinity;
-                moves.forEach(m => {
-                    let newBoard = tempBoard.map(row => [...row]);
-                    applyMove(newBoard, m.r, m.c, WHITE, isValidMove(newBoard, m.r, m.c, WHITE));
-                    best = Math.max(best, minimax(newBoard, depth - 1, false));
-                });
-                return best;
-            } else {
-                let best = Infinity;
-                moves.forEach(m => {
-                    let newBoard = tempBoard.map(row => [...row]);
-                    applyMove(newBoard, m.r, m.c, BLACK, isValidMove(newBoard, m.r, m.c, BLACK));
-                    best = Math.min(best, minimax(newBoard, depth - 1, true));
-                });
-                return best;
-            }
-        }
-
-        function aiMove() {
-            const moves = getValidMoves(board, WHITE);
-            let bestMove = moves[0];
-            let bestVal = -Infinity;
-
-            moves.forEach(m => {
-                let newBoard = board.map(row => [...row]);
-                applyMove(newBoard, m.r, m.c, WHITE, isValidMove(newBoard, m.r, m.c, WHITE));
-                let moveVal = minimax(newBoard, 3, false); // Look 3 moves ahead
-                if (moveVal > bestVal) {
-                    bestVal = moveVal;
-                    bestMove = m;
-                }
-            });
-
-            const flips = isValidMove(board, bestMove.r, bestMove.c, WHITE);
-            applyMove(board, bestMove.r, bestMove.c, WHITE, flips);
-
-            currentPlayer = BLACK;
-            document.getElementById('status').innerText = "Your Turn";
-            render();
-
-            if (getValidMoves(board, BLACK).length === 0) {
-                document.getElementById('status').innerText = "You Pass (No Moves)";
-                setTimeout(aiMove, 1000);
-            }
-        }
-
         function checkGameOver() {
-            if (getValidMoves(board, BLACK).length === 0 && getValidMoves(board, WHITE).length === 0) {
+            const bMoves = getValidMoves(board, BLACK).length;
+            const wMoves = getValidMoves(board, WHITE).length;
+
+            if (bMoves === 0 && wMoves === 0) {
                 const b = board.flat().filter(x => x === BLACK).length;
                 const w = board.flat().filter(x => x === WHITE).length;
-                document.getElementById('status').innerText = b > w ? "You Win!" : "AI Wins!";
+                showEndScreen(b, w);
+            }
+        }
+
+        function showEndScreen(b, w) {
+            const overlay = document.getElementById('overlay');
+            const resText = document.getElementById('result-text');
+            const resEmoji = document.getElementById('result-emoji');
+            const boardEl = document.getElementById('board');
+
+            overlay.style.display = 'flex';
+
+            if (b > w) {
+                resText.innerText = "YOU WIN!";
+                resText.style.color = "var(--accent)";
+                resEmoji.innerText = "🏆";
+                boardEl.classList.add('bounce');
+            } else if (w > b) {
+                resText.innerText = "AI WINS";
+                resText.style.color = "#da3633";
+                resEmoji.innerText = "💀";
+                boardEl.classList.add('shake');
+            } else {
+                resText.innerText = "DRAW";
+                resText.style.color = "white";
+                resEmoji.innerText = "🤝";
             }
         }
 
         function resetGame() {
             currentPlayer = BLACK;
+            gameStarted = false;
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('board').className = ''; // Remove animations
+            document.getElementById('difficulty').disabled = false;
+            document.getElementById('lock-msg').innerText = "";
             document.getElementById('status').innerText = "Your Turn";
             initBoard();
         }
 
+        updateDifficulty();
         initBoard();
     </script>
 </body>
