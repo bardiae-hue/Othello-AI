@@ -28,3 +28,5 @@ No build step required. Clone the repo and open Main.html in a browser:
 bashgit clone https://github.com/bardiae-hue/othello-ai.git
 cd othello-ai
 open Main.html
+
+PLAY: https://bardiae-hue.github.io/Othello-AI/Main.html
